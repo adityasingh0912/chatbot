@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diamond Search Assistant</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Existing styles */
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: transform 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .card h3 {
+            margin-top: 0;
+        }
+        .card p {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Existing HTML structure -->
+        <div class="chat-messages" id="chatMessages">
+            <!-- Initial welcome message -->
+            <div class="message bot-message">
+                <div class="avatar bot-avatar">
+                    <i class="fas fa-gem"></i>
+                </div>
+                <div class="message-bubble">
+                    <div class="message-content">Hello! I'm your diamond assistant. How can I help you find the perfect diamond today?
+                    </div>
+                    <div class="message-time">Just now</div>
+                </div>
+            </div>
+        </div>
+        <div class="input-container">
+            <input type="text" id="userInput" placeholder="Type your message here..." />
+            <button class="send-button" onclick="sendMessage()">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+    <div class="style-selection" id="styleSelection">
+        <h3>Please select diamond style:</h3>
+        <div class="style-buttons">
+            <button class="style-button natural" onclick="selectStyle('Natural')">
+                <i class="fas fa-gem"></i>
+                Natural
+            </button>
+            <button class="style-button labgrown" onclick="selectStyle('LabGrown')">
+                <i class="fas fa-flask"></i>
+                Lab Grown
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let currentQuery = '';
+
+        function addMessage(message, isUser = false) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+
+            const avatar = document.createElement('div');
+            avatar.className = `avatar ${isUser ? 'user-avatar' : 'bot-avatar'}`;
+            avatar.innerHTML = `<i class="fas ${isUser ? 'fa-user' : 'fa-gem'}"></i>`;
+
+            const messageBubble = document.createElement('div');
+            messageBubble.className = 'message-bubble';
+
+            if (isUser) {
+                const content = document.createElement('div');
+                content.className = 'message-content';
+                content.textContent = message;
+                messageBubble.appendChild(content);
+            } else {
+                if (Array.isArray(message)) {
+                    message.forEach(diamond => {
+                        const card = document.createElement('div');
+                        card.className = 'card';
+                        card.innerHTML = `
+                            <h3>${diamond.Style} Diamond</h3>
+                            <p>Carat: ${diamond.Carat}</p>
+                            <p>Price: ${diamond.Price}</p>
+                            <p>Clarity: ${diamond.Clarity}</p>
+                            <p>Color: ${diamond.Color}</p>
+                            <p>Cut: ${diamond.Cut}</p>
+                            <p>Shape: ${diamond.Shape}</p>
+                            <p>Lab: ${diamond.Lab}</p>
+                            <p>Polish: ${diamond.Polish}</p>
+                            <p>Symmetry: ${diamond.Symmetry}</p>
+                        `;
+                        messageBubble.appendChild(card);
+                    });
+                } else {
+                    const content = document.createElement('div');
+                    content.className = 'message-content';
+                    content.textContent = message;
+                    messageBubble.appendChild(content);
+                }
+            }
+
+            const time = document.createElement('div');
+            time.className = 'message-time';
+            time.textContent = 'Just now';
+            messageBubble.appendChild(time);
+
+            if (isUser) {
+                messageDiv.appendChild(messageBubble);
+                messageDiv.appendChild(avatar);
+            } else {
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(messageBubble);
+            }
+
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const message = input.value.trim();
+
+            if (message) {
+                addMessage(message, true);
+                input.value = '';
+                currentQuery = message;
+
+                if (!message.toLowerCase().includes('natural') && !message.toLowerCase().includes('labgrown')) {
+                    document.getElementById('styleSelection').style.display = 'block';
+                } else {
+                    await sendToBackend(message);
+                }
+            }
+        }
+
+        async function selectStyle(style) {
+            document.getElementById('styleSelection').style.display = 'none';
+            const fullQuery = `${currentQuery} ${style}`;
+            await sendToBackend(fullQuery);
+        }
+
+        async function sendToBackend(message) {
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message }),
+                });
+
+                const data = await response.json();
+                addMessage(data.response);
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage('Sorry, I encountered an error. Please try again.');
+            }
+        }
+
+        document.getElementById('userInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
