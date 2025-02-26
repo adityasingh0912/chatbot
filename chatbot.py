@@ -18,6 +18,7 @@ def data_and_embedding(file_path, embedding_file, faiss_index_file, dataframe_fi
     df = df.apply(lambda x: x.astype(str).str.lower())
 
     print(f"Number of rows in dataset: {df.shape[0]}")
+    print(f"Column names in dataset: {df.columns.tolist()}")  # Print column names
 
     # Create a combined text field that includes Style
     df['combined_text'] = (
@@ -60,6 +61,7 @@ def data_and_embedding(file_path, embedding_file, faiss_index_file, dataframe_fi
 # ------------------- Load Data & FAISS Index -------------------
 def load_data_and_index(embedding_file, faiss_index_file, dataframe_file, model_path):
     df = pd.read_csv(dataframe_file)
+    print(f"Column names in loaded dataset: {df.columns.tolist()}")  # Print column names
     df["Carat"] = pd.to_numeric(df["Carat"], errors="coerce")
     embeddings = np.load(embedding_file)
     index = faiss.read_index(faiss_index_file)
@@ -75,16 +77,27 @@ def extract_constraints_from_query(user_query):
     Returns a dictionary.
     """
     constraints = {}
-
+    style_match = re.search(r'\b(lab\s*grown|lab|natural)\b', user_query, re.IGNORECASE)
+    if style_match:
+        style = style_match.group(1).lower()
+        # Normalize "lab" or "lab grown" to a consistent format
+        if "lab" in style:
+            constraints["Style"] = "labgrown"
+        else:
+            constraints["Style"] = "natural"
     # Extract Carat (e.g., "0.8 carat")
     carat_match = re.search(r'(\d+(\.\d+)?)\s*-?\s*carat', user_query, re.IGNORECASE)
     if carat_match:
         constraints["Carat"] = float(carat_match.group(1))
 
     # Extract "under price 2000" or "under 2000"
-    budget_match = re.search(r'under(?:\s*price)?\s*(\d+)', user_query, re.IGNORECASE)
+    # Enhance budget extraction to handle more formats
+    budget_match = re.search(r'\b(?:under|at price|price)\s*\$?(\d+(?:,\d+)?)\b', user_query, re.IGNORECASE)
     if budget_match:
-        constraints["Budget"] = float(budget_match.group(1))
+        budget_str = budget_match.group(1).replace(',', '')
+        constraints["Budget"] = float(budget_str)
+
+
 
     # Extract Color (e.g., "E", "G") – normalized to lowercase
     color_match = re.search(r'\b([a-j])\b', user_query, re.IGNORECASE)
@@ -144,7 +157,8 @@ def hybrid_search(user_query, df, faiss_index, model, top_k=200):
 
     # Restrict by Style if specified
     if "Style" in constraints:
-        df = df[df['Style'] == constraints["Style"]]
+        style_val = constraints["Style"].lower()
+        df = df[df['Style'].str.lower().str.contains(style_val)]
         if df.empty:
             print("No diamonds found for the specified style.")
             return pd.DataFrame()
@@ -158,7 +172,9 @@ def hybrid_search(user_query, df, faiss_index, model, top_k=200):
         
     #Filter by Clarity if specified
     if "Clarity" in constraints:
-        df = df[df["Clarity"].str.lower().str.contains(constraints["Clarity"].lower())]
+        clarity_regex = rf'^{re.escape(constraints["Clarity"].lower())}$'
+        df = df[df["Clarity"].str.lower().str.match(clarity_regex)]
+
         if df.empty:
             print(f"No diamonds found with clarity {constraints['Clarity']}.")
             return pd.DataFrame()
@@ -321,8 +337,9 @@ Ensure the JSON is valid and can be parsed by JavaScript's JSON.parse() function
 def diamond_chatbot(user_query, df, faiss_index, model, client):
     # 1. Quick check for "hi" or "hello"
     if user_query.strip().lower() in ["hi", "hello"]:
-        print("Hello! I'm your diamond assistant. How can I help you find the perfect diamond today?")
+        print("Hey there! I'm your diamond guru 😎. Ready to help you find that perfect sparkle? Tell me what you're looking for!")
         return
+
     
     # 2. Extract constraints from the user query
     constraints = extract_constraints_from_query(user_query)
