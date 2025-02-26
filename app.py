@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import io
 import sys
-from chatbot1 import diamond_chatbot, load_data_and_index, extract_constraints_from_query
+from chatbot import diamond_chatbot, load_data_and_index, extract_constraints_from_query
 from groq import Groq
 from dotenv import load_dotenv
 import os
@@ -55,6 +55,7 @@ def generate_expert_analysis(user_query, diamond_data):
     prompt = f"""
     You are a diamond expert with years of experience in the industry.
     Based on the user query and the diamonds found, provide a brief 2-3 line expert recommendation.
+    Please highlight the important attributes such as Carat, Clarity, Color, Cut, etc.
     Focus on what makes these particular diamonds a good match for the customer's needs.
     Be concise but insightful.
     
