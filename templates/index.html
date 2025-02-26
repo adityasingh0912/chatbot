@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -31,15 +32,22 @@
         }
         
         .diamond-section-header {
+            font-size: 20px; /* Increased font size */
             background: linear-gradient(90deg, #6633cc 0%, #4e78ff 100%);
-            color: white;
-            padding: 12px 20px;
+            color: #fff;
+            padding: 16px 20px;
             border-radius: 8px;
             margin-bottom: 15px;
             font-weight: 600;
-            font-size: 16px;
+            display: flex;
+            align-items: center;
             box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-        }
+}
+        .diamond-section-header::before {
+            content: "\1F48E";  /* Diamond emoji */
+            margin-right: 10px;
+            font-size: 24px;
+    }
         
         .diamond-results {
             display: grid;
@@ -49,15 +57,28 @@
         }
         
         .diamond-card {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-            overflow: hidden;
-            transition: transform 0.2s, box-shadow 0.2s;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-        }
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: auto; /* Allow card to shrink */
+}
+.view-details-btn {
+    background: #4e78ff;
+    color: #fff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-top: 10px;
+}
+
         
         .diamond-card:hover {
             transform: translateY(-3px);
@@ -360,7 +381,86 @@
     const sendButton = document.getElementById('send-button');
     const loadingSpinner = document.getElementById('loading-spinner');
     const dynamicResults = document.getElementById('dynamic-results');
+    let userStyle = ''; // Store user's diamond style preference
+
+// Function to send messages to the chatbot
+function sendMessage() {
+  const userInput = document.getElementById('user-input').value.trim();
+  if (!userInput) return;
+  
+  // Add user message to chat
+  addMessage('user', userInput);
+  document.getElementById('user-input').value = '';
+  
+  // Check if we need to show style popup
+  if (!userStyle && userInput.toLowerCase().includes('diamond') && 
+      !userInput.toLowerCase().includes('lab') && 
+      !userInput.toLowerCase().includes('natural')) {
+    showStylePopup();
     
+    // Store the original query to use after style is selected
+    localStorage.setItem('pendingQuery', userInput);
+    return;
+  }
+  
+  // If we have a style, include it in the query
+  let queryToSend = userInput;
+  if (userStyle) {
+    queryToSend = `${userInput} ${userStyle}`;
+  }
+  
+  // Send to backend
+  fetch('/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: queryToSend })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.needs_style) {
+      showStylePopup();
+      localStorage.setItem('pendingQuery', userInput);
+    } else {
+      addMessage('bot', data.response);
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    addMessage('bot', 'Sorry, there was an error processing your request.');
+  });
+}
+
+function showStylePopup() {
+  document.getElementById('stylePopup').style.display = 'flex';
+}
+
+function selectStyle(style) {
+  userStyle = style;
+  document.getElementById('stylePopup').style.display = 'none';
+  
+  // Process any pending query
+  const pendingQuery = localStorage.getItem('pendingQuery');
+  if (pendingQuery) {
+    localStorage.removeItem('pendingQuery');
+    const fullQuery = `${pendingQuery} ${style}`;
+    addMessage('user', `Style preference: ${style}`);
+    
+    // Send to backend
+    fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: fullQuery })
+    })
+    .then(response => response.json())
+    .then(data => {
+      addMessage('bot', data.response);
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      addMessage('bot', 'Sorry, there was an error processing your request.');
+    });
+  }
+}
     // Track if we're waiting for style selection
     let awaitingStyleSelection = false;
     let previousQuery = '';
@@ -524,7 +624,36 @@
             chatInput.focus();
         }
     }
-    
+
+        function openModalWithDetails(diamond) {
+        const modal = document.getElementById('detailsModal');
+        const modalDetails = document.getElementById('modalDetails');
+        // Populate modal with full diamond details (customize as needed)
+        modalDetails.innerHTML = `
+            <h2>${diamond.Carat} Carat Diamond</h2>
+            <p><strong>Clarity:</strong> ${diamond.Clarity}</p>
+            <p><strong>Color:</strong> ${diamond.Color}</p>
+            <p><strong>Cut:</strong> ${diamond.Cut}</p>
+            <p><strong>Polish:</strong> ${diamond.Polish}</p>
+            <p><strong>Symmetry:</strong> ${diamond.Symmetry}</p>
+            <p><strong>Style:</strong> ${diamond.Style}</p>
+            <p><strong>Price:</strong> $${diamond.Price}</p>
+        `;
+        modal.style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('detailsModal').style.display = 'none';
+    }
+
+    // Close the modal if user clicks outside of the modal-content
+    window.onclick = function(event) {
+        const modal = document.getElementById('detailsModal');
+        if (event.target === modal) {
+            closeModal();
+        }
+    }
+
     // Function to create a diamond card element
     function createDiamondCard(diamond) {
         const card = document.createElement('div');
@@ -610,8 +739,18 @@
         card.appendChild(specsDiv);
         card.appendChild(priceDiv);
         
-        return card;
-    }
+    const viewBtn = document.createElement('button');
+    viewBtn.className = 'view-details-btn';
+    viewBtn.textContent = "View Details";
+    viewBtn.onclick = function() {
+    openModalWithDetails(diamond);
+    };
+    
+    card.appendChild(viewBtn);
+    return card;
+}
+
+    
     
     // Add event listeners
     sendButton.addEventListener('click', sendMessage);
@@ -626,5 +765,158 @@
     chatInput.focus();
 });
     </script>
+
+<!-- Add this to your HTML file -->
+<!-- Popup Markup -->
+<div id="stylePopup" class="popup-container" style="display: none;">
+    <div class="popup-content">
+      <h3>Diamond Style Preference</h3>
+      <p>Choose your diamond type:</p>
+      <div class="popup-buttons">
+        <button onclick="selectStyle('labgrown')">
+          <i class="fas fa-flask"></i> Lab-Grown
+        </button>
+        <button onclick="selectStyle('natural')">
+          <i class="fas fa-gem"></i> Natural
+        </button>
+      </div>
+      <p class="popup-info">
+        Lab-grown: Eco-friendly & budget-friendly<br>
+        Natural: Timeless and classic
+      </p>
+    </div>
+  </div>
+  
+  
+  <style>
+    .chat-input {
+    flex-grow: 1;
+    padding: 12px 15px;
+    border: 2px solid #ddd;
+    border-radius: 25px;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+}
+.chat-input:focus {
+    border-color: #4e78ff;
+    box-shadow: 0 0 8px rgba(78, 120, 255, 0.3);
+}
+.loading-spinner {
+    display: none;
+    text-align: center;
+    padding: 20px;
+    font-size: 16px;
+    color: #4e78ff;
+}
+.spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border-top-color: #4e78ff;
+    animation: spin 1s ease-in-out infinite;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+  .popup-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  
+  .popup-content {
+    background-color: white;
+    padding: 2em;
+    border-radius: 8px;
+    max-width: 500px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  
+  .popup-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 1em;
+    margin: 1.5em 0;
+  }
+  
+  .popup-buttons button {
+    padding: 0.8em 1.5em;
+    border: none;
+    border-radius: 4px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.popup-buttons button:first-child {
+    background-color: #ff6b6b; /* A warm red/pink tone */
+    color: white;
+}
+.popup-buttons button:last-child {
+    background-color: #1dd1a1; /* A fresh green tone */
+    color: white;
+}
+.popup-buttons button:hover {
+    transform: scale(1.05);
+}
+  </style>
+<style>
+    .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    width: 80%;
+    max-width: 600px;
+    position: relative;
+}
+
+.close-button {
+    position: absolute;
+    right: 15px;
+    top: 15px;
+    font-size: 24px;
+    cursor: pointer;
+    color: #333;
+    font-weight: bold;
+    user-select: none;
+}
+
+</style>
+
+<!-- Modal Markup -->
+<div id="detailsModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close-button" onclick="closeModal()">&times;</span>
+      <div id="modalDetails"></div>
+    </div>
+  </div>  
 </body>
 </html>
